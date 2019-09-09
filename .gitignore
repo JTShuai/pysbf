@@ -102,3 +102,11 @@ venv.bak/
 
 # mypy
 .mypy_cache/
+
+# Cython build files
+*.c
+*.pyc
+
+# Need this c file
+!c_crc.c
+
