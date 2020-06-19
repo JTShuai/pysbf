@@ -9,6 +9,8 @@ from libc.stdint cimport uint16_t, uint8_t
 from libc.stdio cimport fread, fdopen, FILE, fseek, SEEK_CUR
 from libc.stdlib cimport malloc, free
 
+HEADER_LEN = 8
+
 cdef struct Header:
     uint16_t Sync
     uint16_t CRC
@@ -39,30 +41,37 @@ def load(fobj, blocknames=set()):
         return ()
 
     while True:
-        if not fread( & h, 8, 1, f):
+        if not fread( & h, HEADER_LEN, 1, f):
             break
         if h.Sync == 16420:
-            if h.Length % 4 == 0 and h.Length > 8:
-                body_length = h.Length-8
+            if h.Length > HEADER_LEN:
+                # Body length is length - header length
+                body_length = h.Length - HEADER_LEN
+
+                # Allocate space for body
                 body_ptr = malloc(body_length)
+
+                # Try to read body_length
                 if not fread(body_ptr, body_length, 1, f):
                     break
+
+                # Check crc
                 if h.CRC == crc16(body_ptr, body_length, crc16( & (h.ID), 4, 0)):
                     blockno = h.ID & 0x1fff
                     blockname = num_name_dict.get(blockno, 'Unknown')
                     parser_func = blockparsers.get(blockname)
                     if parser_func:
-                        block_dict = parser_func(( < char*>body_ptr)[0:body_length])
+                        block_dict = parser_func(( <char*>body_ptr)[0:body_length])
                         yield blockname, block_dict
 
-                    free(body_ptr)
-                else:
-                    fseek(f, -h.Length+2, SEEK_CUR)
-                    free(body_ptr)
-                    continue
+                # Free body_ptr after parsing
+                free(body_ptr)
+
             else:
-                fseek(f, -6, SEEK_CUR)
+                # Length is not > header, try again
+                fseek(f, -HEADER_LEN + 1, SEEK_CUR)
                 continue
         else:
-            fseek(f, -6, SEEK_CUR)
+            # We did not find sync, go back 7 bytes and try again
+            fseek(f, -HEADER_LEN + 1, SEEK_CUR)
             continue
