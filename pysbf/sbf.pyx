@@ -40,38 +40,44 @@ def load(fobj, blocknames=set()):
     if not blockparsers:
         return ()
 
-    while True:
-        if not fread( & h, HEADER_LEN, 1, f):
-            break
-        if h.Sync == 16420:
-            if h.Length > HEADER_LEN:
-                # Body length is length - header length
-                body_length = h.Length - HEADER_LEN
+    cnt = 0
+    try:
+        while True:
+            if not fread( & h, HEADER_LEN, 1, f):
+                break
+            if h.Sync == 16420:
+                if h.Length > HEADER_LEN:
+                    # Body length is length - header length
+                    body_length = h.Length - HEADER_LEN
 
-                # Allocate space for body
-                body_ptr = malloc(body_length)
+                    # Allocate space for body
+                    body_ptr = malloc(body_length)
 
-                # Try to read body_length
-                if not fread(body_ptr, body_length, 1, f):
-                    break
+                    # Try to read body_length
+                    if not fread(body_ptr, body_length, 1, f):
+                        break
 
-                # Check crc
-                if h.CRC == crc16(body_ptr, body_length, crc16( & (h.ID), 4, 0)):
-                    blockno = h.ID & 0x1fff
-                    blockname = num_name_dict.get(blockno, 'Unknown')
-                    parser_func = blockparsers.get(blockname)
-                    if parser_func:
-                        block_dict = parser_func(( <char*>body_ptr)[0:body_length])
-                        yield blockname, block_dict
+                    # Check crc
+                    if h.CRC == crc16(body_ptr, body_length, crc16( & (h.ID), 4, 0)):
+                        blockno = h.ID & 0x1fff
+                        blockname = num_name_dict.get(blockno, 'Unknown')
+                        if blockname == 'ExtEvent':
+                            cnt+=1
+                        parser_func = blockparsers.get(blockname)
+                        if parser_func:
+                            block_dict = parser_func(( <char*>body_ptr)[0:body_length])
+                            yield blockname, block_dict
 
-                # Free body_ptr after parsing
-                free(body_ptr)
+                    # Free body_ptr after parsing
+                    free(body_ptr)
 
+                else:
+                    # Length is not > header, try again
+                    fseek(f, -HEADER_LEN + 1, SEEK_CUR)
+                    continue
             else:
-                # Length is not > header, try again
+                # We did not find sync, go back 7 bytes and try again
                 fseek(f, -HEADER_LEN + 1, SEEK_CUR)
                 continue
-        else:
-            # We did not find sync, go back 7 bytes and try again
-            fseek(f, -HEADER_LEN + 1, SEEK_CUR)
-            continue
+    except Exception as e:
+        print(e)
