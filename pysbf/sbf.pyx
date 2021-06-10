@@ -56,8 +56,8 @@ def load(fobj, blocknames=set()):
                     # Try to read body_length
                     if not fread(body_ptr, body_length, 1, f):
                         break
-                    
-                     # Check crc
+
+                    # Check crc
                     if h.CRC == crc16(body_ptr, body_length, crc16( & (h.ID), 4, 0)):
                         blockno = h.ID & 0x1fff
                         blockname = num_name_dict.get(blockno, 'Unknown')
