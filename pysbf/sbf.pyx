@@ -46,7 +46,7 @@ def load(fobj, blocknames=set()):
             if not fread( & h, HEADER_LEN, 1, f):
                 break
             if h.Sync == 16420:
-                if h.Length > HEADER_LEN:
+                if h.Length > HEADER_LEN and h.Length % 4 == 0:
                     # Body length is length - header length
                     body_length = h.Length - HEADER_LEN
 
@@ -56,8 +56,8 @@ def load(fobj, blocknames=set()):
                     # Try to read body_length
                     if not fread(body_ptr, body_length, 1, f):
                         break
-
-                    # Check crc
+                    
+                     # Check crc
                     if h.CRC == crc16(body_ptr, body_length, crc16( & (h.ID), 4, 0)):
                         blockno = h.ID & 0x1fff
                         blockname = num_name_dict.get(blockno, 'Unknown')
@@ -69,6 +69,9 @@ def load(fobj, blocknames=set()):
                             yield blockname, block_dict
 
                     # Free body_ptr after parsing
+                    else:
+                        fseek(f, -HEADER_LEN + 1 - body_length, SEEK_CUR)
+
                     free(body_ptr)
 
                 else:
